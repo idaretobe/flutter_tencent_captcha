@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <style>
+      * {
+        -webkit-user-select: none;
+      }
+      html,
+      body,
+      #cap_iframe {
+        background-color: transparent;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div> 腾讯验证码 </div>
+    <div id="cap_iframe"></div>
+    <script type="text/javascript">
+      const CAPTCHA_ERROR_MESSAGE = {
+        1001: 'jsload_error',
+        1002: 'show_timeout',
+        1003: 'mid_js_load_timeout',
+        1004: 'mid_js_load_error',
+        1005: 'mid_js_runtime_error',
+        1006: 'captcha_config_error',
+        1007: 'iframe_load_timeout',
+        1008: 'iframe_load_error',
+        1009: 'jquery_load_error',
+        1010: 'slide_js_load_error',
+        1011: 'slide_js_runtime_error',
+        1012: 'reload_failed_thrice',
+        1013: 'network_failed_thrice',
+      };
+
+      function post(kind, data) {
+        if (
+          window.flutter_inappwebview &&
+          window.flutter_inappwebview.callHandler
+        ) {
+          window.flutter_inappwebview.callHandler('tencentCaptcha', {
+            kind,
+            data,
+          });
+        }
+      }
+
+      function normalizeErrorCode(value) {
+        const code = Number(value);
+        return Number.isFinite(code) ? code : null;
+      }
+
+      function errorMessageFor(errorCode, fallback) {
+        return (
+          CAPTCHA_ERROR_MESSAGE[errorCode] ||
+          fallback ||
+          'captcha_error'
+        );
+      }
+
+      function emitDisaster(errorCode, errorMessage) {
+        const code = normalizeErrorCode(errorCode) || 1001;
+        post('callback', {
+          ret: 0,
+          ticket: 'trerror_' + code,
+          errorCode: code,
+          errorMessage: errorMessageFor(code, errorMessage),
+          randstr: '@' + Math.random().toString(36).substr(2),
+        });
+      }
+
+      let instance = null;
+      let sdkReady = false;
+      let scriptStarted = false;
+      let pendingConfigure = null;
+      let showTimer = null;
+
+      function clearShowTimer() {
+        if (showTimer !== null) {
+          clearTimeout(showTimer);
+          showTimer = null;
+        }
+      }
+
+      function handleCaptchaCallback(res) {
+        clearShowTimer();
+        const payload = res && typeof res === 'object' ? res : {};
+        const code = normalizeErrorCode(payload.errorCode);
+        if (code !== null) {
+          payload.errorCode = code;
+          payload.errorMessage = errorMessageFor(code, payload.errorMessage);
+        }
+        post('callback', payload);
+      }
+
+      function applyConfigure(configJson) {
+        const config = JSON.parse(configJson);
+        const appId = config.appId;
+        delete config.appId;
+        delete config.sdkOpts;
+        config.ready = (d) => {
+          clearShowTimer();
+          post('ready', d);
+        };
+        config.showFn = (d) => {
+          clearShowTimer();
+          post('showFn', d);
+        };
+        config.verifyFn = (d) => post('verifyFn', d);
+        post('debug', {
+          href: String(location.href),
+          host: String(location.host),
+          referrer: String(document.referrer),
+          appId: String(appId || ''),
+        });
+        try {
+          // Popup CaptchaAppId uses the 3-arg Web constructor. Binding a
+          // container (4-arg) is embed mode and 1006s production AppIds.
+<!--          instance = new TencentCaptcha(-->
+<!--            String(appId),-->
+<!--            handleCaptchaCallback,-->
+<!--            config,-->
+<!--          );-->
+              var container = document.getElementById('cap_iframe');
+              captchaInstance = new TencentCaptcha(
+                    container,
+                    String(appId),
+                    handleCaptchaCallback,
+                    config
+                );
+
+
+        } catch (e) {
+          instance = null;
+          emitDisaster(1001, 'jsload_error');
+        }
+      }
+
+      const DEFAULT_CAPTCHA_SCRIPT =
+        'https://ca.turing.captcha.qcloud.com/TJNCaptcha-global.js';
+
+      function allowedScriptUrl(url) {
+        if (typeof url !== 'string' || !url) {
+          return DEFAULT_CAPTCHA_SCRIPT;
+        }
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== 'https:') {
+            return DEFAULT_CAPTCHA_SCRIPT;
+          }
+          const host = parsed.hostname;
+          if (
+            host === 'turing.captcha.qcloud.com' ||
+            host.endsWith('.captcha.qcloud.com') ||
+            host === 'ssl.captcha.qq.com' ||
+            host.endsWith('.captcha.qq.com')
+          ) {
+            return parsed.href;
+          }
+        } catch (e) {
+          return DEFAULT_CAPTCHA_SCRIPT;
+        }
+        return DEFAULT_CAPTCHA_SCRIPT;
+      }
+
+      function flushPendingConfigure() {
+        if (pendingConfigure === null) return;
+        const queued = pendingConfigure;
+        pendingConfigure = null;
+        applyConfigure(queued);
+      }
+
+      function unloadCaptchaSdk() {
+        clearShowTimer();
+        if (instance && typeof instance.destroy === 'function') {
+          try {
+            instance.destroy();
+          } catch (e) {}
+        }
+        instance = null;
+        sdkReady = false;
+        scriptStarted = false;
+        pendingConfigure = null;
+        const nodes = document.querySelectorAll('script[data-captcha-sdk="1"]');
+        for (let i = 0; i < nodes.length; i += 1) {
+          nodes[i].parentNode.removeChild(nodes[i]);
+        }
+        try {
+          window.TencentCaptcha = undefined;
+        } catch (e) {}
+      }
+
+      function loadCaptchaScript(scriptUrl, force) {
+        if (scriptStarted) return;
+        if (!force && typeof TencentCaptcha === 'function') {
+          scriptStarted = true;
+          sdkReady = true;
+          post('scriptReady', {});
+          flushPendingConfigure();
+          return;
+        }
+        scriptStarted = true;
+        const script = document.createElement('script');
+        script.setAttribute('data-captcha-sdk', '1');
+        script.src = allowedScriptUrl(scriptUrl);
+        script.onload = function () {
+          sdkReady = true;
+          post('debug', { script: String(script.src) });
+          post('scriptReady', {});
+          flushPendingConfigure();
+        };
+        script.onerror = function () {
+          scriptStarted = false;
+          emitDisaster(1001, 'jsload_error');
+        };
+        document.head.appendChild(script);
+      }
+
+      window._captchaBridge = {
+        start(scriptUrl) {
+          loadCaptchaScript(scriptUrl);
+        },
+        reloadScript(scriptUrl) {
+          unloadCaptchaSdk();
+          loadCaptchaScript(scriptUrl, true);
+        },
+        configure(configJson) {
+          if (!sdkReady) {
+            pendingConfigure = configJson;
+            let queuedUrl;
+            try {
+              const parsed = JSON.parse(configJson);
+              queuedUrl =
+                parsed &&
+                parsed.sdkOpts &&
+                parsed.sdkOpts.scriptUrl;
+            } catch (e) {
+              queuedUrl = undefined;
+            }
+            loadCaptchaScript(queuedUrl);
+            return;
+          }
+          applyConfigure(configJson);
+        },
+        show() {
+          if (!instance) {
+            emitDisaster(1002, 'show_timeout');
+            return;
+          }
+          try {
+            clearShowTimer();
+            showTimer = setTimeout(function () {
+              showTimer = null;
+              emitDisaster(1002, 'show_timeout');
+            }, 15000);
+            instance.show();
+          } catch (e) {
+            clearShowTimer();
+            emitDisaster(1002, 'show_timeout');
+          }
+        },
+        destroy() {
+          clearShowTimer();
+          instance && instance.destroy();
+          instance = null;
+        },
+        reload() {
+          instance && instance.reload();
+        },
+        getTicket() {
+          return instance ? instance.getTicket() : null;
+        },
+      };
+    </script>
+  </body>
+</html>
