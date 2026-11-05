@@ -1,27 +1,33 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>腾讯云验证码</title>
+    <link rel="preconnect" href="https://ca.turing.captcha.qcloud.com">
+    <link rel="preconnect" href="https://global.turing.captcha.gtimg.com">
+    <link rel="preload" as="script" href="https://global.turing.captcha.gtimg.com/TDID_2.7.2.js">
+    <!-- 验证码程序依赖(必须)。请勿修改以下程序依赖，如通过其他手段规避加载，会导致验证码无法正常更新，对抗能力无法保证，甚至引起误拦截。 -->
+    <script src="https://ca.turing.captcha.qcloud.com/TJNCaptcha-global.js" onerror="window.__captchaSdkLoadError = true"></script>
     <style>
-      * {
-        -webkit-user-select: none;
+      html, body {
+          margin: 0;
+          background: transparent;
       }
-      html,
-      body,
       #cap_iframe {
-        background-color: transparent;
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
+          position: fixed;
+          left: 0;
+          top: 0;
+          width: 0;
+          height: 0;
+          overflow: visible;
+          z-index: 2;
       }
     </style>
   </head>
   <body>
+
     <div> 腾讯验证码 </div>
     <div id="cap_iframe"></div>
     <script type="text/javascript">
