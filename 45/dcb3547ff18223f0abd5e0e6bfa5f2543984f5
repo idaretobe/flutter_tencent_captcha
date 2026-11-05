@@ -1,0 +1,19 @@
+.github/workflows/pages.yml
+  s_6ad7690b943cd6::t_da6b9cc6c00867 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "45dcb3547ff18223f0abd5e0e6bfa5f2543984f5",
+  "prompts": {},
+  "sessions": {
+    "s_6ad7690b943cd6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "be92443d-d14d-478d-a59d-e6d6c8b07f42",
+        "model": "grok-4.6"
+      },
+      "human_author": "zhangzhiyuan <zhangzhiyuan@sinohope.com>"
+    }
+  }
+}
