@@ -1,290 +1,248 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>腾讯云验证码</title>
-    <link rel="preconnect" href="https://ca.turing.captcha.qcloud.com">
-    <link rel="preconnect" href="https://global.turing.captcha.gtimg.com">
-    <link rel="preload" as="script" href="https://global.turing.captcha.gtimg.com/TDID_2.7.2.js">
-    <!-- 验证码程序依赖(必须)。请勿修改以下程序依赖，如通过其他手段规避加载，会导致验证码无法正常更新，对抗能力无法保证，甚至引起误拦截。 -->
-    <script src="https://ca.turing.captcha.qcloud.com/TJNCaptcha-global.js" onerror="window.__captchaSdkLoadError = true"></script>
-    <style>
-      html, body {
-          margin: 0;
-          background: transparent;
-      }
-      #cap_iframe {
-          position: fixed;
-          left: 0;
-          top: 0;
-          width: 0;
-          height: 0;
-          overflow: visible;
-          z-index: 2;
-      }
-    </style>
-  </head>
-  <body>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>腾讯云验证码</title>
+  <!-- 验证码程序依赖(必须)。请勿修改以下程序依赖，如通过其他手段规避加载，会导致验证码无法正常更新，对抗能力无法保证，甚至引起误拦截。 -->
+  <script src="https://ca.turing.captcha.qcloud.com/TJNCaptcha-global.js"></script>
+  <style>
+    html, body {
+        margin: 0;
+        background: transparent;
+    }
+    #fallback {
+        display: none;
+        box-sizing: border-box;
+        min-height: 100vh;
+        padding: 24px 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+        color: #1a1a1a;
+        background: #fff;
+    }
+    html.manual #fallback {
+        display: block;
+    }
+    #cap_iframe {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 0;
+        height: 0;
+        overflow: visible;
+        z-index: 2;
+    }
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+    input {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 420px;
+        height: 44px;
+        margin-bottom: 16px;
+        padding: 0 12px;
+        border: 1px solid #d0d0d0;
+        border-radius: 8px;
+        font-size: 16px;
+    }
+    button {
+        height: 44px;
+        padding: 0 24px;
+        border: 0;
+        border-radius: 8px;
+        background: #0052d9;
+        color: #fff;
+        font-size: 16px;
+    }
+    #result {
+        margin-top: 16px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+<div id="cap_iframe"></div>
+<div id="fallback">
+  <label for="captchaAppId">CaptchaAppId</label>
+  <input id="captchaAppId" type="text" inputmode="numeric" autocomplete="off" placeholder="请输入 CaptchaAppId">
+  <button id="CaptchaId" type="button">验证</button>
+  <pre id="result"></pre>
+</div>
+<script>
+  var bridgeConfig = null;
+  var captchaInstance = null;
+  var bridgeShowAttempts = 0;
 
-    <div> 腾讯验证码 </div>
-    <div id="cap_iframe"></div>
-    <script type="text/javascript">
-      const CAPTCHA_ERROR_MESSAGE = {
-        1001: 'jsload_error',
-        1002: 'show_timeout',
-        1003: 'mid_js_load_timeout',
-        1004: 'mid_js_load_error',
-        1005: 'mid_js_runtime_error',
-        1006: 'captcha_config_error',
-        1007: 'iframe_load_timeout',
-        1008: 'iframe_load_error',
-        1009: 'jquery_load_error',
-        1010: 'slide_js_load_error',
-        1011: 'slide_js_runtime_error',
-        1012: 'reload_failed_thrice',
-        1013: 'network_failed_thrice',
-      };
+  function trim(value) {
+      return value == null ? '' : String(value).replace(/^\s+|\s+$/g, '');
+  }
 
-      function post(kind, data) {
-        if (
-          window.flutter_inappwebview &&
-          window.flutter_inappwebview.callHandler
-        ) {
-          window.flutter_inappwebview.callHandler('tencentCaptcha', {
-            kind,
-            data,
-          });
-        }
-      }
+  function revealManual() {
+      document.documentElement.className = 'manual';
+  }
 
-      function normalizeErrorCode(value) {
-        const code = Number(value);
-        return Number.isFinite(code) ? code : null;
-      }
+  function renderResult(res, extra) {
+      var errorCode = res && res.errorCode != null ? res.errorCode : '';
+      var ticket = res && res.ticket ? res.ticket : '';
+      var text = 'ret=' + (res && res.ret) +
+          '\nerrorCode=' + errorCode +
+          '\nerrorMessage=' + ((res && res.errorMessage) || '') +
+          '\nticket=' + ticket +
+          '\nrandstr=' + ((res && res.randstr) || '');
+      if (extra) text += '\n' + extra;
+      document.getElementById('result').textContent = text;
+  }
 
-      function errorMessageFor(errorCode, fallback) {
-        return (
-          CAPTCHA_ERROR_MESSAGE[errorCode] ||
-          fallback ||
-          'captcha_error'
-        );
-      }
+  function isCaptchaFailure(res) {
+      if (!res || res.ret === 2) return !res;
+      if (res.errorCode != null && String(res.errorCode) !== '') return true;
+      var ticket = res.ticket ? String(res.ticket) : '';
+      return ticket.indexOf('trerror_') === 0;
+  }
 
-      function emitDisaster(errorCode, errorMessage) {
-        const code = normalizeErrorCode(errorCode) || 1001;
-        post('callback', {
-          ret: 0,
-          ticket: 'trerror_' + code,
-          errorCode: code,
-          errorMessage: errorMessageFor(code, errorMessage),
-          randstr: '@' + Math.random().toString(36).substr(2),
-        });
-      }
-
-      let instance = null;
-      let sdkReady = false;
-      let scriptStarted = false;
-      let pendingConfigure = null;
-      let showTimer = null;
-
-      function clearShowTimer() {
-        if (showTimer !== null) {
-          clearTimeout(showTimer);
-          showTimer = null;
-        }
-      }
-
-      function handleCaptchaCallback(res) {
-        clearShowTimer();
-        const payload = res && typeof res === 'object' ? res : {};
-        const code = normalizeErrorCode(payload.errorCode);
-        if (code !== null) {
-          payload.errorCode = code;
-          payload.errorMessage = errorMessageFor(code, payload.errorMessage);
-        }
-        post('callback', payload);
-      }
-
-      function applyConfigure(configJson) {
-        const config = JSON.parse(configJson);
-        const appId = config.appId;
-        delete config.appId;
-        delete config.sdkOpts;
-        config.ready = (d) => {
-          clearShowTimer();
-          post('ready', d);
-        };
-        config.showFn = (d) => {
-          clearShowTimer();
-          post('showFn', d);
-        };
-        config.verifyFn = (d) => post('verifyFn', d);
-        post('debug', {
-          href: String(location.href),
-          host: String(location.host),
-          referrer: String(document.referrer),
-          appId: String(appId || ''),
-        });
-        try {
-          // Popup CaptchaAppId uses the 3-arg Web constructor. Binding a
-          // container (4-arg) is embed mode and 1006s production AppIds.
-<!--          instance = new TencentCaptcha(-->
-<!--            String(appId),-->
-<!--            handleCaptchaCallback,-->
-<!--            config,-->
-<!--          );-->
-              var container = document.getElementById('cap_iframe');
-              captchaInstance = new TencentCaptcha(
-                    container,
-                    String(appId),
-                    handleCaptchaCallback,
-                    config
-                );
-
-
-        } catch (e) {
-          instance = null;
-          emitDisaster(1001, 'jsload_error');
-        }
-      }
-
-      const DEFAULT_CAPTCHA_SCRIPT =
-        'https://ca.turing.captcha.qcloud.com/TJNCaptcha-global.js';
-
-      function allowedScriptUrl(url) {
-        if (typeof url !== 'string' || !url) {
-          return DEFAULT_CAPTCHA_SCRIPT;
-        }
-        try {
-          const parsed = new URL(url);
-          if (parsed.protocol !== 'https:') {
-            return DEFAULT_CAPTCHA_SCRIPT;
+  function notifyApp(res) {
+      try {
+          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+              window.flutter_inappwebview.callHandler('tencentCaptcha', {
+                  kind: 'callback',
+                  data: res
+              });
           }
-          const host = parsed.hostname;
-          if (
-            host === 'turing.captcha.qcloud.com' ||
-            host.endsWith('.captcha.qcloud.com') ||
-            host === 'ssl.captcha.qq.com' ||
-            host.endsWith('.captcha.qq.com')
-          ) {
-            return parsed.href;
-          }
-        } catch (e) {
-          return DEFAULT_CAPTCHA_SCRIPT;
-        }
-        return DEFAULT_CAPTCHA_SCRIPT;
-      }
+      } catch (e) {}
+  }
 
-      function flushPendingConfigure() {
-        if (pendingConfigure === null) return;
-        const queued = pendingConfigure;
-        pendingConfigure = null;
-        applyConfigure(queued);
-      }
-
-      function unloadCaptchaSdk() {
-        clearShowTimer();
-        if (instance && typeof instance.destroy === 'function') {
-          try {
-            instance.destroy();
-          } catch (e) {}
-        }
-        instance = null;
-        sdkReady = false;
-        scriptStarted = false;
-        pendingConfigure = null;
-        const nodes = document.querySelectorAll('script[data-captcha-sdk="1"]');
-        for (let i = 0; i < nodes.length; i += 1) {
-          nodes[i].parentNode.removeChild(nodes[i]);
-        }
-        try {
-          window.TencentCaptcha = undefined;
-        } catch (e) {}
-      }
-
-      function loadCaptchaScript(scriptUrl, force) {
-        if (scriptStarted) return;
-        if (!force && typeof TencentCaptcha === 'function') {
-          scriptStarted = true;
-          sdkReady = true;
-          post('scriptReady', {});
-          flushPendingConfigure();
+  function callback(res, fromBridge) {
+      console.log('callback:', res, 'fromBridge:', fromBridge);
+      if (fromBridge && isCaptchaFailure(res)) {
+          revealManual();
+          renderResult(res, '自动打开失败，请修改 CaptchaAppId 后点击验证');
           return;
-        }
-        scriptStarted = true;
-        const script = document.createElement('script');
-        script.setAttribute('data-captcha-sdk', '1');
-        script.src = allowedScriptUrl(scriptUrl);
-        script.onload = function () {
-          sdkReady = true;
-          post('debug', { script: String(script.src) });
-          post('scriptReady', {});
-          flushPendingConfigure();
-        };
-        script.onerror = function () {
-          scriptStarted = false;
-          emitDisaster(1001, 'jsload_error');
-        };
-        document.head.appendChild(script);
       }
+      renderResult(res, '');
+      notifyApp(res);
+  }
 
-      window._captchaBridge = {
-        start(scriptUrl) {
-          loadCaptchaScript(scriptUrl);
-        },
-        reloadScript(scriptUrl) {
-          unloadCaptchaSdk();
-          loadCaptchaScript(scriptUrl, true);
-        },
-        configure(configJson) {
-          if (!sdkReady) {
-            pendingConfigure = configJson;
-            let queuedUrl;
-            try {
-              const parsed = JSON.parse(configJson);
-              queuedUrl =
-                parsed &&
-                parsed.sdkOpts &&
-                parsed.sdkOpts.scriptUrl;
-            } catch (e) {
-              queuedUrl = undefined;
-            }
-            loadCaptchaScript(queuedUrl);
-            return;
+  function loadErrorCallback(appid, fromBridge) {
+      var ticket = 'trerror_1001_' + appid + '_' + Math.floor(new Date().getTime() / 1000);
+      callback({
+          ret: 0,
+          randstr: '@' + Math.random().toString(36).substr(2),
+          ticket: ticket,
+          errorCode: 1001,
+          errorMessage: 'jsload_error',
+      }, fromBridge);
+  }
+
+  function optionsFor(appId) {
+      var options = { type: 'popup' };
+      if (!bridgeConfig) return options;
+      if (bridgeConfig.userLanguage) options.userLanguage = bridgeConfig.userLanguage;
+      if (bridgeConfig.bizState != null) options.bizState = bridgeConfig.bizState;
+      if (bridgeConfig.enableDarkMode != null) options.enableDarkMode = bridgeConfig.enableDarkMode;
+      if (bridgeConfig.needFeedBack != null) options.needFeedBack = bridgeConfig.needFeedBack;
+      if (bridgeConfig.aidEncrypted && trim(bridgeConfig.appId) === appId) {
+          options.aidEncrypted = bridgeConfig.aidEncrypted;
+      }
+      return options;
+  }
+
+  function openCaptcha(appId, fromBridge, attempt) {
+      if (!appId) {
+          revealManual();
+          document.getElementById('result').textContent = '请输入 CaptchaAppId';
+          return false;
+      }
+      if (typeof TencentCaptcha !== 'function') {
+          loadErrorCallback(appId, fromBridge);
+          return false;
+      }
+      try {
+          if (captchaInstance && typeof captchaInstance.destroy === 'function') {
+              captchaInstance.destroy();
           }
-          applyConfigure(configJson);
-        },
-        show() {
-          if (!instance) {
-            emitDisaster(1002, 'show_timeout');
-            return;
+          var instance = new TencentCaptcha(
+              document.getElementById('cap_iframe'),
+              appId,
+              function (res) { callback(res, fromBridge); },
+              optionsFor(appId)
+          );
+          captchaInstance = instance;
+          instance.show();
+          return true;
+      } catch (error) {
+          var message = error && error.message ? String(error.message) : '';
+          console.log('captcha open error', message);
+          if ((attempt || 0) < 20 && message.indexOf('not loaded') !== -1) {
+              setTimeout(function () {
+                  openCaptcha(appId, fromBridge, (attempt || 0) + 1);
+              }, 200);
+              return false;
           }
-          try {
-            clearShowTimer();
-            showTimer = setTimeout(function () {
-              showTimer = null;
-              emitDisaster(1002, 'show_timeout');
-            }, 15000);
-            instance.show();
-          } catch (e) {
-            clearShowTimer();
-            emitDisaster(1002, 'show_timeout');
+          loadErrorCallback(appId, fromBridge);
+          return false;
+      }
+  }
+
+  function showFromBridge() {
+      var appId = bridgeConfig ? trim(bridgeConfig.appId) : '';
+      if (!appId) {
+          revealManual();
+          document.getElementById('result').textContent = '未收到 CaptchaAppId，请输入后点击验证';
+          return;
+      }
+      if (typeof TencentCaptcha !== 'function') {
+          bridgeShowAttempts += 1;
+          if (bridgeShowAttempts < 15) {
+              setTimeout(showFromBridge, 200);
+              return;
           }
-        },
-        destroy() {
-          clearShowTimer();
-          instance && instance.destroy();
-          instance = null;
-        },
-        reload() {
-          instance && instance.reload();
-        },
-        getTicket() {
-          return instance ? instance.getTicket() : null;
-        },
+          revealManual();
+          document.getElementById('result').textContent = '验证码脚本未就绪，请输入 CaptchaAppId 后点击验证';
+          return;
+      }
+      document.getElementById('captchaAppId').value = appId;
+      openCaptcha(appId, true);
+  }
+
+  window.onload = function () {
+      document.getElementById('CaptchaId').onclick = function () {
+          openCaptcha(trim(document.getElementById('captchaAppId').value), false);
       };
-    </script>
-  </body>
+      var queryAppId = '';
+      try {
+          queryAppId = trim(new URLSearchParams(location.search).get('appId'));
+      } catch (e) {}
+      if (queryAppId) document.getElementById('captchaAppId').value = queryAppId;
+      var inApp = window.flutter_inappwebview && window.flutter_inappwebview.callHandler;
+      if (!inApp) {
+          revealManual();
+          if (queryAppId) openCaptcha(queryAppId, false);
+      }
+  };
+
+  window._captchaBridge = {
+      start: function () {},
+      reloadScript: function () {},
+      configure: function (configJson) {
+          try {
+              bridgeConfig = typeof configJson === 'string' ? JSON.parse(configJson) : (configJson || {});
+              var appId = trim(bridgeConfig.appId);
+              if (appId) document.getElementById('captchaAppId').value = appId;
+          } catch (e) {
+              bridgeConfig = null;
+              revealManual();
+              document.getElementById('result').textContent = '桥接参数无效，请输入 CaptchaAppId 后点击验证';
+          }
+      },
+      show: showFromBridge
+  };
+</script>
+</body>
 </html>
