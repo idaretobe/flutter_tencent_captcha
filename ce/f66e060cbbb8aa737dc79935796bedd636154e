@@ -1,0 +1,21 @@
+captcha.html
+  s_6ad7690b943cd6::t_21e19d41b1a975 9
+index.html
+  s_6ad7690b943cd6::t_39858100a6d6cb 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cef66e060cbbb8aa737dc79935796bedd636154e",
+  "prompts": {},
+  "sessions": {
+    "s_6ad7690b943cd6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "be92443d-d14d-478d-a59d-e6d6c8b07f42",
+        "model": "grok-4.6"
+      },
+      "human_author": "zhangzhiyuan <zhangzhiyuan@sinohope.com>"
+    }
+  }
+}
