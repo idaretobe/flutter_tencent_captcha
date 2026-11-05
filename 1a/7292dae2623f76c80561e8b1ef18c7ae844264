@@ -1,0 +1,21 @@
+captcha.html
+  s_6ad7690b943cd6::t_ab16c14e48604e 4-12,14-16,19-25,30
+index.html
+  s_6ad7690b943cd6::t_a2a410e768acfa 4-12,14-16,19-25,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a7292dae2623f76c80561e8b1ef18c7ae844264",
+  "prompts": {},
+  "sessions": {
+    "s_6ad7690b943cd6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "be92443d-d14d-478d-a59d-e6d6c8b07f42",
+        "model": "grok-4.6"
+      },
+      "human_author": "zhangzhiyuan <zhangzhiyuan@sinohope.com>"
+    }
+  }
+}
